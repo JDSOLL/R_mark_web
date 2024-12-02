@@ -1,30 +1,165 @@
 ---
-title: "My_Website"
+title: "My Website"
 author: "Joshua Soll"
-date: "2024-11-07"
-output: html_document
+date: "Last Updated: 2024-12-02"
+output: 
+  html_document:
+    code_folding: hide
+    
 ---
 
 ```{r setup, include=FALSE}
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+
+# Set knitr options
 knitr::opts_chunk$set(echo = TRUE)
+
 ```
 
-## R Markdown
+# [***Select the tabs below to see my work***]{.underline} {.tabset}
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+```{r eval=FALSE, include=FALSE}
+#with the # i have created a header
+#with the set of *** i have made bold 
+#.underline underlines the header
+#.tabset tells the code the headers below this current one and with additional #'s will be tabs under this one
 ```
 
-## Including Plots
+## ***Purpose***
 
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r eval =FALSE, include=FALSE}
+# an additional # puts a header within the tab. For example, if the tab is marked by a ##, make a header in the tab with a ###
+#can add as many headers within the tab by sticking with ###. Or if you want a subheader you can add an additional #.
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+### ***GIS Final Project***
+
+The purpose of this website is to demonstrate my skills in creating a website via R markdown and display some code and data that I am using for my master's thesis.
+
+### ***Glider Data***
+
+This oceanographic data may provide insight into the preferences and habits of the whale species I am studying for my thesis, and the map created using this data will support my thesis development.
+
+## ***Data***
+
+### ***Data Collection***
+
+The glider's southern mission, having a 23 day duration, started in La Parguera, Puerto Rico, and was completed towards the east end of St. Thomas. The glider's northern mission, having a 20 day duration, started off the shelf north of St. Thomas and was completed in Aguadilla Bay, Aguadilla, Puerto Rico.
+
+As the glider travels, it follows a series of waypoints and dives to depths specified by the the pilot and collects sensor data. This glider, named UVI1, is equipped with pressure, oxygen, CTD sensors, and has a hydrophone for cetacean detection.
+
+This data collected during these missions consists of scientific sensor data that the glider transmitted via satellite during surfacing events. Not all data could be sent during this time, so values are missing. However, these two datasets are a good start in painting a picture of oceanographic conditions in the region. Through my research aimed at detecting and identifying whale noises, I can use this data to determine the depth at which whales were detected, and the conditions in which the whales were detected, which may provide insight into the preferences and habits of these animals.
+
+### ***Data Description***
+
+The data are separated by mission -- the north side deployment file name base is UVI_PR_W_Northside_1, and the south side deployment file name base is UVI_PR_E_Southside_1. Each deployment starts with raw real time data. The raw real time data is glider sensor data that was transmitted during the glider's surfacing events in mission.
+
+Below is the head of the raw UVI1_PR_E_Southside_1 data. We'll be using this dataset as the example for the rest of the process.
+
+```{r}
+# 1. Loading the data here
+df <- read.csv('/Users/JoshSoll/Desktop/Glider_Lab/Glider_Data/UVI1_ScienceData_PR_E_Southside_1.csv')
+
+head(df)
+```
+
+As you can see, many NaNs exist in the data. Data exists for these NaN spaces, but the glider is only able to send a portion of its collected data during its limited surfacing events. The full sensor dataset is downloaded at the end of the mission and can only be decoded with a proprietary decoding shell packages that converts binary data to a readable format. At the moment I do not have access to the decoding packages, so I am using the real time data. This does provide the opportunity to do some manipulation.
+
+## ***Data Processing***
+
+### ***Adjust the Time Column***
+
+The "time" column is currently in a format that combines date and time. I want to separate the data in this column so it can more easily be read by GIS.
+
+Here I am displaying the head of the data with only these three columns selected to verify the code worked. 
+
+```{r}
+# 2. Split the "time" column into separate "date" and "time_only" columns
+df <- df %>%
+  mutate(
+    datetime = as.POSIXct(time, format = "%Y-%m-%dT%H:%M:%S"),  # Adjust format as needed
+    date = as.Date(datetime),
+    time_only = format(datetime, "%H:%M:%S")
+  )
+
+# Display the result to verify
+head(df[, c("time", "date", "time_only")])
+
+```
+
+### ***Interpolating Depth***
+
+As previously mentioned, this raw, real time data is incomplete, including depth values that represent the glider's depth in meters at the time of data collection. We do have a good amount of depth data, and given that the glider's rates of descent and ascent are fairly consistent, we can interpolate the missing depth values using existing ones.
+
+In this original dataset you can see that depth values are missing:
+
+```{r}
+head(df$depth, 10)
+```
+
+After running the interpolation code, you can see that the missing values have been interpolated.
+
+```{r}
+# 3. Interpolate missing values in the "depth" column
+df <- df %>%
+  mutate(depth = zoo::na.approx(depth, na.rm = FALSE))  # Linear interpolation for NA values
+
+# Display the result to verify
+head(df$depth, 10)
+```
+
+I want to verify that depths have been interpolated properly, so here I have plotted a time series of depth to see that depth values are conistent with what we sent the glider to in mission. I selected the timeseries for a specific day so that you can see the dives/climbs of the glider (called yo's)
+
+```{r}
+# Specify the date you want to filter for
+specific_date <- as.Date("2024-08-31")  # Replace with your desired date
+
+# Filter data for the specific date
+filtered_df <- df %>% filter(date == specific_date)
+
+# Plot depth over time for the specific date
+ggplot(filtered_df, aes(x = time_only, y = depth)) +
+  geom_line(color = "blue", linewidth = 1) +  # Connect points with lines
+  geom_point(color = "red", size = 2) + # Optional: Add points for clarity
+  scale_y_reverse() +  # Invert y-axis
+  labs(
+    title = paste("Time Series of Depth for", specific_date),
+    x = "Time",
+    y = "Depth (m)"
+  ) +
+  theme_minimal()
+```
+
+Lastly, I want to make a new dataframe that averages all sensor values by daily time bins so that users of this map in GIS can select these points and see what the data in the area is like. 
+
+```{r}
+
+# Ensure datetime is set as a proper column and create a date column
+df <- df %>%
+  mutate(
+    datetime = as.POSIXct(time, format = "%Y-%m-%dT%H:%M:%S"),
+    date = as.Date(datetime)  # Create a date column
+  ) %>%
+  arrange(datetime)
+
+# Group by date and calculate daily averages, applying mean with na.rm = TRUE
+daily_avg_df <- df %>%
+  group_by(date) %>%  # Group by the date column
+  summarize(across(where(is.numeric), ~ mean(.x, na.rm = TRUE)), .groups = "drop")  # Calculate mean for numeric columns
+
+# Display the result to verify
+head(daily_avg_df)
+
+
+```
+
+## ***Map***
+
+<img src="https://raw.githubusercontent.com/JDSOLL/R_mark_web/main/docs/GliderMap.jpg" 
+     alt="Glider Map" width="100%" height="500px">
+     
+     
+Above is a map of two glider mission paths from my deployments in the Fall of 2024. No whale detections were made as of yet, so the map only shows the glider tracks. Once I can finalize an online interactive map, you will be able to select each yellow point on the two tracks and see the average daily sensor values for the missions. 
