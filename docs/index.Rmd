@@ -159,7 +159,7 @@ head(daily_avg_df)
 ## ***Map***
 
 <img src="https://raw.githubusercontent.com/JDSOLL/R_mark_web/main/docs/GliderMap.jpg" 
-     alt="Glider Map" width="100%" height="500px">
+     alt="Glider Map" width="100%" height="700px">
      
      
 Above is a map of two glider mission paths from my deployments in the Fall of 2024. No whale detections were made as of yet, so the map only shows the glider tracks. Once I can finalize an online interactive map, you will be able to select each yellow point on the two tracks and see the average daily sensor values for the missions. 
